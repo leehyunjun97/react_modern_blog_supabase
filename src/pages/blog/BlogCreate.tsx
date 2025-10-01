@@ -1,12 +1,14 @@
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Save, Upload, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import supabase from '../../utils/supabase';
 import { useAuthStore } from '../../stores/authStore';
 
 export default function BlogCreate() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const profile = useAuthStore((state) => state.profile);
+  const [postId, setPostId] = useState(0);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [content, setContent] = useState('');
@@ -26,17 +28,37 @@ export default function BlogCreate() {
     e.preventDefault();
     try {
       // 예외처리 해야됨
-      const { data, error } = await supabase
-        .from('posts')
-        .insert([
-          { category, title, content, thumbnail, profile_id: profile?.id },
-        ])
-        .select()
-        .single();
-      if (error) throw error;
-      if (data) {
-        alert('게시글이 등록되었습니다.');
-        navigate('/'); // 작성한 포스트로 가게
+      if (postId) {
+        const { data, error } = await supabase
+          .from('posts')
+          .update({
+            category,
+            title,
+            content,
+            thumbnail,
+          })
+          .eq('id', postId)
+          .eq('profile_id', profile?.id || '')
+          .select();
+
+        if (error) throw error;
+        if (data) {
+          alert('글이 수정되었습니다.');
+          navigate(`/blog/${postId}`);
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('posts')
+          .insert([
+            { category, title, content, thumbnail, profile_id: profile?.id },
+          ])
+          .select()
+          .single();
+        if (error) throw error;
+        if (data) {
+          alert('게시글이 등록되었습니다.');
+          navigate('/'); // 작성한 포스트로 가게
+        }
       }
     } catch (error) {
       console.error(error);
@@ -54,6 +76,36 @@ export default function BlogCreate() {
     'Tutorial',
   ];
 
+  useEffect(() => {
+    if (id) {
+      const fetchPost = async () => {
+        try {
+          const { data: posts, error } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('id', Number(id))
+            .single();
+          if (error) throw error;
+          if (posts) {
+            setTitle(posts.title);
+            setCategory(posts.category);
+            setContent(posts.content);
+            setThumbnail(posts.thumbnail);
+            setPostId(posts.id);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      };
+      fetchPost();
+    } else {
+      setTitle('');
+      setCategory('');
+      setContent('');
+      setThumbnail('');
+    }
+  }, [id]);
+
   return (
     <div>
       <div className='mb-8'>
@@ -66,7 +118,9 @@ export default function BlogCreate() {
         </Link>
 
         <div className='flex items-center justify-between'>
-          <h1 className='text-3xl font-bold text-gray-900'>Write New Post</h1>
+          <h1 className='text-3xl font-bold text-gray-900'>
+            {id ? 'Modify Post' : 'Write New Post'}
+          </h1>
         </div>
       </div>
 
@@ -184,7 +238,7 @@ export default function BlogCreate() {
 
             <div className='flex items-center justify-end space-x-4 pt-6 border-t border-gray-200'>
               <Link
-                to='/blog'
+                to={id ? `/blog/${id}` : `/blog`}
                 className='px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors'
               >
                 Cancel
@@ -194,7 +248,7 @@ export default function BlogCreate() {
                 className='inline-flex items-center px-6 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors'
               >
                 <Save size={16} className='mr-2' />
-                Publish Post
+                {id ? 'Modify' : 'Publish'} Post
               </button>
             </div>
           </div>
