@@ -16,15 +16,35 @@ export default function BlogList() {
         const { data: posts, error } = await supabase.from('posts').select('*');
         if (error) throw error;
         setPosts(posts);
-        console.log(posts);
-      } catch (error) {
-        console.error(error);
+      } catch (e) {
+        console.error(e);
       } finally {
         setIsLoading(false);
       }
     };
     getPosts();
-  }, [setIsLoading]);
+
+    //구독
+    const channel = supabase
+      .channel('posts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'posts',
+        },
+        (payload) => {
+          setPosts((posts) => [...posts, payload.new as Post]);
+          console.log(payload);
+        }
+      )
+      .subscribe((status) => console.log(status));
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <div>
